@@ -2,6 +2,8 @@
 
 A C++17 search engine for local UTF-8 text and source files. The retrieval algorithms are implemented here, rather than delegated to a search library. Runs on macOS (Apple Silicon or Intel) and POSIX systems with a C++17 compiler.
 
+Windows users can follow the [WSL2 setup](#build-and-run-on-windows-wsl2) below. Native Windows/MSVC builds are not implemented.
+
 **Positional inverted index · BM25 · Boolean query parser · phrase matching · BK-tree fuzzy search · prefix search · bounded top-k heap · incremental snapshots**
 
 Use the command-line application or the optional **Streamlit + FastAPI interface**. Both use the same C++ engine. The web API holds an immutable native index in memory through pybind11 instead of spawning a CLI process for each search. Services bind to loopback by default.
@@ -55,6 +57,94 @@ Run `index` again after editing source files. It detects content changes, adds n
 If an existing index is damaged or incompatible, `index` refuses to overwrite it silently. Use `./build/lse index <folder> --index <file> --rebuild` to explicitly create a complete replacement from source files. A failed rebuild still leaves the old snapshot in place.
 
 The default index location is `.local-search/index.lsi` relative to the **current working directory**, not the corpus directory. Use `--index` consistently if you select another location. Search uses the saved snapshot; rerun `index` to see changes. `:quit` exits the interactive session.
+
+## Build and run on Windows (WSL2)
+
+Use **WSL2 with Ubuntu** to run the Linux build on Windows. The engine requires POSIX APIs such as `flock`, `fsync` and `unistd.h`; installing a Windows C++ compiler alone is insufficient. The instructions below target Ubuntu 24.04. WSL execution has not been tested on the development Mac; the recorded test and benchmark results are from macOS.
+
+### 1. Install WSL2
+
+On Windows 11, or Windows 10 version 2004/build 19041 or later, open **PowerShell as Administrator**:
+
+```powershell
+wsl --install -d Ubuntu-24.04
+```
+
+Restart Windows if prompted, launch **Ubuntu 24.04**, and create the requested Linux username/password. If WSL is already installed, use `wsl --list --online` to check the available distribution names. Microsoft's [WSL installation guide](https://learn.microsoft.com/en-us/windows/wsl/install) covers prerequisites and installation troubleshooting.
+
+Check the installed distribution from PowerShell:
+
+```powershell
+wsl --list --verbose
+```
+
+Its `VERSION` column should be `2`. If it is `1`, convert that distribution with `wsl --set-version Ubuntu-24.04 2` (use the exact installed name).
+
+### 2. Install Linux tools and clone the project
+
+Run the remaining build and application commands **inside the Ubuntu terminal**, not directly in PowerShell or Command Prompt:
+
+```bash
+sudo apt update
+sudo apt install -y build-essential clang git python3 python3-dev python3-venv
+
+mkdir -p ~/projects
+cd ~/projects
+git clone https://github.com/pigglegiggle/local-search-engine.git
+cd local-search-engine
+```
+
+Keep the checkout, virtual environment and saved indexes in the Linux filesystem, such as `~/projects`, for Linux filesystem semantics and better file-operation performance. See Microsoft's [filesystem guidance](https://learn.microsoft.com/en-us/windows/wsl/filesystems). Create `.venv` inside WSL; do not reuse a Windows/macOS virtual environment or a compiled native module from another operating system.
+
+### 3. Build and try the CLI
+
+```bash
+make
+make demo
+./build/lse search '"memory allocation"' --index build/demo.lsi --explain
+./build/lse repl --index build/demo.lsi --explain
+```
+
+Enter `:quit` to exit the REPL. All query syntax and CLI examples elsewhere in this README also apply inside WSL.
+
+### 4. Start the web UI
+
+```bash
+make web-setup
+make web
+```
+
+The setup creates a Linux Python virtual environment, installs the pinned dependencies and compiles the native C++ binding. Keep that terminal open, then open these addresses in your **Windows browser**:
+
+- UI: <http://localhost:8501>
+- API docs: <http://localhost:8000/docs>
+
+WSL supports accessing Linux services from Windows using `localhost`; see Microsoft's [networking guide](https://learn.microsoft.com/en-us/windows/wsl/networking). If the page does not open, check that both services started and their ports are free; WSL networking/firewall configuration can also affect access. Press **Ctrl+C in Ubuntu** to stop both services. On later runs, use `make web` again.
+
+### 5. Index files stored on Windows
+
+Windows drives appear under `/mnt` in WSL. For example, `C:\Users\YourName\Documents\my-notes` becomes `/mnt/c/Users/YourName/Documents/my-notes`. Replace `YourName` and the folder with your actual path:
+
+```bash
+./build/lse index "/mnt/c/Users/YourName/Documents/my-notes" \
+  --index build/windows-notes.lsi --threads 4
+./build/lse search 'memory OR cache' --index build/windows-notes.lsi
+
+# Start the UI with this snapshot instead of the demo collection.
+LSE_INDEX="$PWD/build/windows-notes.lsi" make web
+```
+
+Stop an existing launcher before starting another. Reindex after source edits, then click **Reload index** in the UI. Keep the snapshot under the Linux checkout even when reading source files from a Windows drive. For reproducible performance measurements, copy the corpus into the Linux filesystem too; `/mnt/c` timings include cross-filesystem costs.
+
+### 6. Verify the WSL build
+
+```bash
+make test
+make web-test
+make benchmark
+```
+
+`web-test` requires `web-setup` first. The synthetic benchmark uses temporary files and keeps its JSON results in `build/benchmark.json`. The separate `scripts/benchmark_real.py` harness uses macOS `/usr/bin/time -l` and is **not portable to WSL as written**; use the synthetic benchmark on WSL or adapt the memory measurement before running that harness.
 
 ## Query language
 
