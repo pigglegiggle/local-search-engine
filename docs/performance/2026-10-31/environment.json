@@ -1,0 +1,33 @@
+{
+  "recorded_at": "2026-10-31T00:19:18.886719+07:00",
+  "cpu": "Apple M2",
+  "ram_bytes": 17179869184,
+  "logical_cpus": 8,
+  "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+  "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)\nTarget: arm64-apple-darwin25.5.0\nThread model: posix\nInstalledDir: /Library/Developer/CommandLineTools/usr/bin\n",
+  "flags": "-std=c++17 -O2 -Wall -Wextra -Wpedantic -pthread",
+  "sha256": {
+    "src/engine.cpp": "50b9a18b8aaaddeade89fc0113e15be5ea442a839d0baef2c49f280b551b5bd2",
+    "src/storage.cpp": "7c05551c058c7cab68cb3be14efb8f934d244e626082e285bf68161c673b2562",
+    "src/main.cpp": "4fed4174101c2304414cf3834e70bfb409d46505b9d2bfd4c4132ab1d051dd40",
+    "include/lse/engine.hpp": "5c9c989cfe3a4ff1606dae46d4c217fa6c0e1327a8bb1b4f110de8eb1fc311c4",
+    "bindings/python.cpp": "3176cae46546f33676892a96dd08fa47b790856375ee8432f165106c2037a0df",
+    "tests/benchmark.cpp": "b5b9ed7590afcb2b620bf102be323ad3e0d1600c0398e0c623a3a8dd477e749e",
+    "scripts/benchmark.py": "a0805cba67b00224fc7341320b41ca91f2ac404a35329cf199ce8f08ae721254",
+    "scripts/benchmark_real.py": "a3ea32373964596d65f984948bd3297b5fd8b674a142f910ffd0244b7ef403f0",
+    "build/lse": "f5cab739beb5fed704d408cb8a6f93288dcf279444011de003d1acd9a8aa06e1",
+    "build/benchmark_runner": "4aec102a5350dff71698d8951a4c2f97b59af0c1cb41c0bdf161289be66e3125",
+    "web/_native.cpython-313-darwin.so": "891b6682856b59df96f8d17bb4a033c7aff201c805942943a7e865e1ded65c8e"
+  },
+  "synthetic_50000": {
+    "status": "not_completed",
+    "stage": "temporary corpus generation, before engine execution",
+    "error": "OSError: [Errno 28] No space left on device",
+    "action": "temporary corpus automatically removed; completed 20000-document test instead"
+  },
+  "notes": [
+    "Sequential benchmark execution; ordinary desktop background processes remain active.",
+    "No OS filesystem cache flush, CPU pinning or power/thermal control.",
+    "Synthetic fresh indexing and unchanged indexing have one observation each per size; real CPython has three each."
+  ]
+}

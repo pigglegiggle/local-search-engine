@@ -1,0 +1,50 @@
+{
+  "seed": 20261030,
+  "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+  "machine": "arm64",
+  "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+  "corpus": {
+    "documents": 10000,
+    "words_per_document": 180,
+    "random_vocabulary": 1000
+  },
+  "build_end_to_end_ms": 1102.936374998535,
+  "unchanged_reindex_end_to_end_ms": 1224.8352079986944,
+  "unchanged_report": "Added 0 \u00b7 changed 0 \u00b7 unchanged 10000 \u00b7 removed 0 \u00b7 skipped 0",
+  "stats": {
+    "documents": 10000,
+    "terms": 1008,
+    "tokens": 1800000,
+    "postings": 1650074,
+    "source_bytes": 17980279,
+    "index_bytes": 23740782,
+    "load_ms": 204.070083
+  },
+  "search": {
+    "documents": 10000,
+    "workloads": 12,
+    "samples_per_method": 360,
+    "rankings_verified": true,
+    "indexed_p50_ms": 0.230459,
+    "indexed_p95_ms": 1.10104,
+    "scan_p50_ms": 2.20342,
+    "scan_p95_ms": 11.0085
+  },
+  "fresh_process_cli_ms": [
+    222.8987079943181,
+    224.40541700052563,
+    224.8165839991998,
+    224.22687499783933,
+    222.62966700509423
+  ],
+  "methodology": [
+    "Synthetic UTF-8 corpus; not representative of all real document distributions.",
+    "Both methods operate on resident memory; tokenization and index loading excluded from query timings.",
+    "Baseline scans pre-tokenized documents, computes BM25 with precomputed document frequencies, and sorts matches.",
+    "Engine also parses the query, generates explanations internally, and extracts 10 snippets; baseline omits snippets.",
+    "12 workloads: eight two-term AND queries and four phrases, including rare and missing terms; top-10 IDs, scores, and totals verified.",
+    "Execution order alternates; one correctness/warm-up run precedes timing for each workload.",
+    "Fresh-process CLI numbers include process startup, index load/validation, BK-tree construction, search, and JSON output; filesystem cache is not flushed.",
+    "Unchanged reindex still reads source bytes, remaps postings, rebuilds the dictionary/BK-tree, and saves a new snapshot."
+  ]
+}
