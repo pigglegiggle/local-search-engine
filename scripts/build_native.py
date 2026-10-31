@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Build with the active Python ABI; no global install or shell interpolation."""
+
 import os
 from pathlib import Path
 import subprocess
@@ -12,12 +13,23 @@ import pybind11
 root = Path(__file__).resolve().parents[1]
 output = root / "web" / ("_native" + sysconfig.get_config_var("EXT_SUFFIX"))
 command = [
-    os.environ.get("CXX", "clang++"), "-std=c++17", "-O2", "-Wall", "-Wextra",
-    "-Wpedantic", "-pthread", "-shared", "-fPIC",
-    "-I" + str(root / "include"), "-I" + pybind11.get_include(),
+    os.environ.get("CXX", "clang++"),
+    "-std=c++17",
+    "-O2",
+    "-Wall",
+    "-Wextra",
+    "-Wpedantic",
+    "-pthread",
+    "-shared",
+    "-fPIC",
+    "-I" + str(root / "include"),
+    "-I" + pybind11.get_include(),
     "-I" + sysconfig.get_path("include"),
-    str(root / "bindings/python.cpp"), str(root / "src/engine.cpp"),
-    str(root / "src/storage.cpp"), "-o", str(output),
+    str(root / "bindings/python.cpp"),
+    str(root / "src/engine.cpp"),
+    str(root / "src/storage.cpp"),
+    "-o",
+    str(output),
 ]
 if sys.platform == "darwin":
     command += ["-undefined", "dynamic_lookup"]

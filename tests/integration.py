@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Black-box persistence, incremental rebuild, filesystem, and failure tests."""
+
 import concurrent.futures
 import fcntl
 import json
@@ -28,8 +29,12 @@ with tempfile.TemporaryDirectory(prefix="lse-tests-") as temporary:
     index = base / "index.lsi"
 
     def run(*args, ok=True, target=index):
-        result = subprocess.run([str(binary), *map(str, args), "--index", str(target)],
-                                capture_output=True, text=True, timeout=30)
+        result = subprocess.run(
+            [str(binary), *map(str, args), "--index", str(target)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
         check((result.returncode == 0) == ok, f"{args}: {result.stdout} {result.stderr}")
         return result
 
@@ -76,14 +81,20 @@ with tempfile.TemporaryDirectory(prefix="lse-tests-") as temporary:
     (root / "b.cpp").unlink()
     (root / "new.md").write_text("brand new scheduler")
     result = run("index", root)
-    check("added 1" in result.stdout.lower() and "changed 1" in result.stdout and "removed 1" in result.stdout,
-          "incremental add/change/remove report")
+    check(
+        "added 1" in result.stdout.lower()
+        and "changed 1" in result.stdout
+        and "removed 1" in result.stdout,
+        "incremental add/change/remove report",
+    )
     check(search("memory")["total"] == 0, "stale postings removed")
     check(search("scheduler")["hits"][0]["path"] == "new.md", "new postings searchable")
     run("verify")
     rebuilt = base / "fresh.lsi"
     run("index", root, target=rebuilt)
-    check(index.read_bytes() == rebuilt.read_bytes(), "incremental and full rebuild byte equivalence")
+    check(
+        index.read_bytes() == rebuilt.read_bytes(), "incremental and full rebuild byte equivalence"
+    )
     saved = index.read_bytes()
 
     with open(str(index) + ".lock", "r+") as lock:
@@ -94,8 +105,14 @@ with tempfile.TemporaryDirectory(prefix="lse-tests-") as temporary:
 
     run("index", base / "missing", ok=False)
     check(index.read_bytes() == saved, "failed scan preserves previous index")
-    for args in [("search", "memory OR"), ("search", "*"), ("search", "x", "-k", "-1"),
-                 ("index", root, "--threads", "0"), ("search", "x", "--wat"), ("search", "x", "--index")]:
+    for args in [
+        ("search", "memory OR"),
+        ("search", "*"),
+        ("search", "x", "-k", "-1"),
+        ("index", root, "--threads", "0"),
+        ("search", "x", "--wat"),
+        ("search", "x", "--index"),
+    ]:
         # Missing-value parsing needs a direct call, since run() appends --index.
         if args[-1] == "--index":
             r = subprocess.run([str(binary), *args], capture_output=True, timeout=10)
@@ -109,13 +126,17 @@ with tempfile.TemporaryDirectory(prefix="lse-tests-") as temporary:
         run("stats", target=corrupt, ok=False)
     for offset in (0, 8, 16, 20, len(saved) - 1):
         mutated = bytearray(saved)
-        mutated[offset] ^= 0x7f
+        mutated[offset] ^= 0x7F
         corrupt.write_bytes(mutated)
         run("verify", target=corrupt, ok=False)
     # Correct CRC with malformed varints exercises the parser beyond checksum rejection.
     for payload in (b"\xff" * 12, b"\x01/\xff" * 5, b"\x01/\x00\x00extra"):
-        corrupt.write_bytes(b"LSEIDX01" + len(payload).to_bytes(8, "little") +
-                            zlib.crc32(payload).to_bytes(4, "little") + payload)
+        corrupt.write_bytes(
+            b"LSEIDX01"
+            + len(payload).to_bytes(8, "little")
+            + zlib.crc32(payload).to_bytes(4, "little")
+            + payload
+        )
         run("stats", target=corrupt, ok=False)
 
     # Mutate checksum-valid payloads to exercise bounded structural decoding.
@@ -123,10 +144,18 @@ with tempfile.TemporaryDirectory(prefix="lse-tests-") as temporary:
     for _ in range(40):
         payload = bytearray(saved[20:])
         payload[rng.randrange(len(payload))] ^= 1 << rng.randrange(8)
-        corrupt.write_bytes(b"LSEIDX01" + len(payload).to_bytes(8, "little") +
-                            zlib.crc32(payload).to_bytes(4, "little") + payload)
-        result = subprocess.run([str(binary), "verify", "--index", str(corrupt)],
-                                capture_output=True, text=True, timeout=30)
+        corrupt.write_bytes(
+            b"LSEIDX01"
+            + len(payload).to_bytes(8, "little")
+            + zlib.crc32(payload).to_bytes(4, "little")
+            + payload
+        )
+        result = subprocess.run(
+            [str(binary), "verify", "--index", str(corrupt)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
         check(result.returncode in (0, 1), "checksum-valid malformed index does not crash")
 
     corrupt.write_bytes(b"damaged snapshot")
@@ -139,8 +168,12 @@ with tempfile.TemporaryDirectory(prefix="lse-tests-") as temporary:
     # Concurrent readers see complete snapshots during atomic replacement.
     def reader(_):
         for _ in range(4):
-            result = subprocess.run([str(binary), "search", "scheduler", "--json", "--index", str(index)],
-                                    capture_output=True, text=True, timeout=30)
+            result = subprocess.run(
+                [str(binary), "search", "scheduler", "--json", "--index", str(index)],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
             if result.returncode or json.loads(result.stdout)["total"] != 1:
                 return False
         return True

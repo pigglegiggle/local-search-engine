@@ -1,4 +1,5 @@
 """FastAPI reads immutable C++ snapshots; no shell commands in request handlers."""
+
 from contextlib import asynccontextmanager
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -89,7 +90,9 @@ class SearchService:
                 stats = engine.stats()
                 stats["index_bytes"] = after[3]
                 return Snapshot(engine, after, stats, version)
-        raise RuntimeError("Index changed repeatedly during loading. Retry after indexing finishes.")
+        raise RuntimeError(
+            "Index changed repeatedly during loading. Retry after indexing finishes."
+        )
 
     def snapshot(self) -> Snapshot:
         with self._lock:
@@ -107,8 +110,11 @@ class SearchService:
         begin = time.perf_counter()
         snapshot = self.snapshot()
         result = snapshot.engine.search(query, limit, explain)
-        return {**result, "snapshot_id": snapshot.version,
-                "request_ms": (time.perf_counter() - begin) * 1000}
+        return {
+            **result,
+            "snapshot_id": snapshot.version,
+            "request_ms": (time.perf_counter() - begin) * 1000,
+        }
 
     def reload(self) -> dict:
         with self._reload_lock:
@@ -120,6 +126,7 @@ class SearchService:
 
 class UploadCollections:
     """Bounded temporary collections; failed imports never replace an existing collection."""
+
     def __init__(self):
         self._items = OrderedDict()
         self._lock = threading.Lock()
@@ -138,11 +145,21 @@ class UploadCollections:
         names = set()
         for file in files:
             name = file.filename or ""
-            if (not name or name in {".", ".."} or "/" in name or "\\" in name or
-                    any(ord(c) < 32 or ord(c) == 127 for c in name) or len(name.encode("utf-8")) > 240):
-                raise HTTPException(422, "Use simple filenames without directories or control characters.")
+            if (
+                not name
+                or name in {".", ".."}
+                or "/" in name
+                or "\\" in name
+                or any(ord(c) < 32 or ord(c) == 127 for c in name)
+                or len(name.encode("utf-8")) > 240
+            ):
+                raise HTTPException(
+                    422, "Use simple filenames without directories or control characters."
+                )
             if Path(name).suffix.lower().lstrip(".") not in TEXT_EXTENSIONS:
-                raise HTTPException(422, f"Unsupported file type: {name}. Upload UTF-8 text or source files.")
+                raise HTTPException(
+                    422, f"Unsupported file type: {name}. Upload UTF-8 text or source files."
+                )
             if name.casefold() in names:
                 raise HTTPException(422, "Duplicate filenames are not allowed in one upload.")
             names.add(name.casefold())
@@ -163,7 +180,9 @@ class UploadCollections:
                     try:
                         data.decode("utf-8")
                     except UnicodeDecodeError as error:
-                        raise HTTPException(422, f"{file.filename} is not valid UTF-8 text.") from error
+                        raise HTTPException(
+                            422, f"{file.filename} is not valid UTF-8 text."
+                        ) from error
                     if b"\0" in data:
                         raise HTTPException(422, f"{file.filename} contains binary data.")
                     (corpus / file.filename).write_bytes(data)
@@ -195,11 +214,16 @@ class UploadCollections:
 
 class UploadBodyLimit:
     """Bound multipart bodies before the framework spools uploaded files to disk."""
+
     def __init__(self, app):
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http" or scope.get("path") != "/collections" or scope.get("method") != "POST":
+        if (
+            scope["type"] != "http"
+            or scope.get("path") != "/collections"
+            or scope.get("method") != "POST"
+        ):
             return await self.app(scope, receive, send)
         chunks = []
         total = 0
@@ -209,7 +233,9 @@ class UploadBodyLimit:
                 return
             total += len(message.get("body", b""))
             if total > MAX_BATCH_BYTES + 1024 * 1024:
-                response = JSONResponse({"detail": "Upload request exceeds 33 MiB."}, status_code=413)
+                response = JSONResponse(
+                    {"detail": "Upload request exceeds 33 MiB."}, status_code=413
+                )
                 return await response(scope, receive, send)
             chunks.append(message)
             if not message.get("more_body", False):
@@ -241,14 +267,17 @@ def create_app(index_path: Path | None = None) -> FastAPI:
             del app.state.service
 
     application = FastAPI(
-        title="Local Search Engine", version="1.0.0",
+        title="Local Search Engine",
+        version="1.0.0",
         description="Resident-memory C++ search. Local use; index paths are configured at startup.",
         lifespan=lifespan,
     )
     application.add_middleware(UploadBodyLimit)
 
     def service_for(request: Request, collection: str | None) -> SearchService:
-        return request.app.state.uploads.get(collection) if collection else request.app.state.service
+        return (
+            request.app.state.uploads.get(collection) if collection else request.app.state.service
+        )
 
     @application.post("/collections", status_code=201)
     def upload(request: Request, files: Annotated[list[UploadFile], File()]):
@@ -266,13 +295,22 @@ def create_app(index_path: Path | None = None) -> FastAPI:
         return {"status": "ok", "engine": "C++17 / pybind11", "snapshot_id": snapshot.version}
 
     @application.get("/stats", response_model=StatsResponse)
-    def stats(request: Request, collection: Annotated[str | None, Query(pattern="^[a-f0-9]{32}$")] = None):
+    def stats(
+        request: Request, collection: Annotated[str | None, Query(pattern="^[a-f0-9]{32}$")] = None
+    ):
         return service_for(request, collection).stats()
 
     @application.get("/search", response_model=SearchResponse, response_model_exclude_none=True)
     def search(
         request: Request,
-        q: Annotated[str, Query(min_length=1, max_length=4096, description="Engine query, including Boolean/phrase/fuzzy syntax")],
+        q: Annotated[
+            str,
+            Query(
+                min_length=1,
+                max_length=4096,
+                description="Engine query, including Boolean/phrase/fuzzy syntax",
+            ),
+        ],
         k: Annotated[int, Query(ge=1, le=1000)] = 10,
         explain: bool = False,
         collection: Annotated[str | None, Query(pattern="^[a-f0-9]{32}$")] = None,
@@ -289,7 +327,10 @@ def create_app(index_path: Path | None = None) -> FastAPI:
         try:
             return request.app.state.service.reload()
         except (RuntimeError, OSError) as error:
-            raise HTTPException(status_code=409, detail="Reload failed; previous snapshot remains active. " + str(error)) from error
+            raise HTTPException(
+                status_code=409,
+                detail="Reload failed; previous snapshot remains active. " + str(error),
+            ) from error
 
     return application
 

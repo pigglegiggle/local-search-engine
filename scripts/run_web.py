@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run owned API/UI processes together and stop both on Ctrl+C."""
+
 import os
 from pathlib import Path
 import socket
@@ -18,7 +19,9 @@ def ensure_free(port: int):
         try:
             sock.bind(("127.0.0.1", port))
         except OSError as error:
-            raise RuntimeError(f"Port {port} is already in use. Stop that service or run make api / make ui separately.") from error
+            raise RuntimeError(
+                f"Port {port} is already in use. Stop that service or run make api / make ui separately."
+            ) from error
 
 
 def start(arguments: list[str], env: dict):
@@ -42,14 +45,30 @@ def main() -> int:
                     break
             except httpx.RequestError:
                 pass
-            time.sleep(.1)
+            time.sleep(0.1)
         else:
             raise RuntimeError("Search API did not become ready within 30 seconds.")
-    start(["-m", "streamlit", "run", "web/ui.py", "--server.address", "127.0.0.1",
-           "--server.port", "8501", "--server.headless", "true"], env)
-    print("\nSearch UI: http://127.0.0.1:8501\nAPI docs:  http://127.0.0.1:8000/docs\nCtrl+C stops both services.\n", flush=True)
+    start(
+        [
+            "-m",
+            "streamlit",
+            "run",
+            "web/ui.py",
+            "--server.address",
+            "127.0.0.1",
+            "--server.port",
+            "8501",
+            "--server.headless",
+            "true",
+        ],
+        env,
+    )
+    print(
+        "\nSearch UI: http://127.0.0.1:8501\nAPI docs:  http://127.0.0.1:8000/docs\nCtrl+C stops both services.\n",
+        flush=True,
+    )
     while all(child.poll() is None for child in children):
-        time.sleep(.25)
+        time.sleep(0.25)
     raise RuntimeError("A web service stopped; shutting down its companion.")
 
 

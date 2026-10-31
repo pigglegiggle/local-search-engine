@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Reproducible synthetic benchmark; results are measurements, not hiring claims."""
+
 import argparse
 import json
 import pathlib
@@ -24,7 +25,9 @@ if not runner.exists():
 
 
 def run(command):
-    return subprocess.run(list(map(str, command)), check=True, text=True, capture_output=True, timeout=300)
+    return subprocess.run(
+        list(map(str, command)), check=True, text=True, capture_output=True, timeout=300
+    )
 
 
 with tempfile.TemporaryDirectory(prefix="lse-benchmark-") as temp:
@@ -65,7 +68,11 @@ with tempfile.TemporaryDirectory(prefix="lse-benchmark-") as temp:
         "platform": platform.platform(),
         "machine": platform.machine(),
         "compiler": run(["clang++", "--version"]).stdout.splitlines()[0],
-        "corpus": {"documents": args.documents, "words_per_document": 180, "random_vocabulary": 1000},
+        "corpus": {
+            "documents": args.documents,
+            "words_per_document": 180,
+            "random_vocabulary": 1000,
+        },
         "build_end_to_end_ms": build_ms,
         "unchanged_reindex_end_to_end_ms": unchanged_ms,
         "unchanged_report": unchanged.stdout.splitlines()[1],

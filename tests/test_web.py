@@ -1,4 +1,5 @@
 """HTTP contracts, native parity, snapshot lifetime, and real Streamlit widget flows."""
+
 from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
@@ -26,8 +27,12 @@ def system(tmp_path):
     index = tmp_path / "corpus.lsi"
 
     def rebuild():
-        subprocess.run([str(BINARY), "index", str(corpus), "--index", str(index), "--rebuild"],
-                       check=True, capture_output=True, text=True)
+        subprocess.run(
+            [str(BINARY), "index", str(corpus), "--index", str(index), "--rebuild"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
     rebuild()
     app = create_app(index)
@@ -35,16 +40,32 @@ def system(tmp_path):
         yield app, client, corpus, index, rebuild
 
 
-@pytest.mark.parametrize("query", ["memory", '"memory allocation"', "memry~1", "sched*",
-                                   "(cache OR memory) NOT ext:cpp", "NOT memory", "ไทย"])
+@pytest.mark.parametrize(
+    "query",
+    [
+        "memory",
+        '"memory allocation"',
+        "memry~1",
+        "sched*",
+        "(cache OR memory) NOT ext:cpp",
+        "NOT memory",
+        "ไทย",
+    ],
+)
 def test_search_matches_cli(system, query):
     app, client, _, index, _ = system
     resident = app.state.service.snapshot().engine
     response = client.get("/search", params={"q": query, "explain": True})
     assert response.status_code == 200
     result = response.json()
-    reference = json.loads(subprocess.run([str(BINARY), "search", query, "--index", str(index), "--json", "--explain"],
-                                         check=True, capture_output=True, text=True).stdout)
+    reference = json.loads(
+        subprocess.run(
+            [str(BINARY), "search", query, "--index", str(index), "--json", "--explain"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+    )
     assert result["total"] == reference["total"]
     assert result["expanded_terms"] == reference["expanded_terms"]
     assert [hit["path"] for hit in result["hits"]] == [hit["path"] for hit in reference["hits"]]
@@ -55,16 +76,29 @@ def test_search_matches_cli(system, query):
     assert app.state.service.snapshot().engine is resident
 
 
-@pytest.mark.parametrize("params", [{}, {"q": ""}, {"q": "  "}, {"q": "memory OR"},
-                                    {"q": "*"}, {"q": "memory", "k": 0}, {"q": "memory", "k": 1001},
-                                    {"q": "memory", "k": "bad"}, {"q": "ก" * 1400}])
+@pytest.mark.parametrize(
+    "params",
+    [
+        {},
+        {"q": ""},
+        {"q": "  "},
+        {"q": "memory OR"},
+        {"q": "*"},
+        {"q": "memory", "k": 0},
+        {"q": "memory", "k": 1001},
+        {"q": "memory", "k": "bad"},
+        {"q": "ก" * 1400},
+    ],
+)
 def test_invalid_requests(system, params):
     assert system[1].get("/search", params=params).status_code == 422
 
 
 def test_contracts_and_no_shell(system, monkeypatch):
     _, client, _, _, _ = system
-    monkeypatch.setattr(subprocess, "run", lambda *a, **k: pytest.fail("API must not spawn CLI per request"))
+    monkeypatch.setattr(
+        subprocess, "run", lambda *a, **k: pytest.fail("API must not spawn CLI per request")
+    )
     assert client.get("/health").json()["status"] == "ok"
     assert client.get("/stats").json()["documents"] == 4
     response = client.get("/search", params={"q": "memory", "k": 1})
@@ -121,6 +155,7 @@ def test_parallel_search_during_reload(system):
 @pytest.fixture
 def ui(system, monkeypatch):
     import web.client
+
     client = system[1]
 
     def call(path, *, method="GET", params=None, files=None):
@@ -128,7 +163,7 @@ def ui(system, monkeypatch):
         if response.is_error:
             raise APIError(str(response.json()["detail"]))
         result = response.json()
-        result["round_trip_ms"] = .5
+        result["round_trip_ms"] = 0.5
         return result
 
     monkeypatch.setattr(web.client, "call_api", call)
@@ -186,28 +221,37 @@ def test_ui_api_offline(monkeypatch):
 def test_upload_search_isolated_and_utf8(system):
     app, client, _, _, _ = system
     default = app.state.service.snapshot()
-    response = client.post("/collections", files=[
-        ("files", ("notes.md", b"uploadonly memory allocation", "text/plain")),
-        ("files", ("unicode.txt", "ไทย สวัสดี uploadonly".encode(), "text/plain")),
-    ])
+    response = client.post(
+        "/collections",
+        files=[
+            ("files", ("notes.md", b"uploadonly memory allocation", "text/plain")),
+            ("files", ("unicode.txt", "ไทย สวัสดี uploadonly".encode(), "text/plain")),
+        ],
+    )
     assert response.status_code == 201, response.text
     collection = response.json()["collection_id"]
     assert response.json()["documents"] == 2
     assert client.get("/search", params={"q": "uploadonly"}).json()["total"] == 0
-    assert client.get("/search", params={"q": "uploadonly", "collection": collection}).json()["total"] == 2
+    assert (
+        client.get("/search", params={"q": "uploadonly", "collection": collection}).json()["total"]
+        == 2
+    )
     assert client.get("/search", params={"q": "ไทย", "collection": collection}).json()["total"] == 1
     assert client.get("/stats", params={"collection": collection}).json()["documents"] == 2
     assert app.state.service.snapshot() is default
 
 
-@pytest.mark.parametrize("files", [
-    [("files", ("../escape.txt", b"text"))],
-    [("files", ("folder\\escape.txt", b"text"))],
-    [("files", ("report.pdf", b"%PDF"))],
-    [("files", ("bad.txt", b"a\0b"))],
-    [("files", ("bad.txt", b"\xff"))],
-    [("files", ("same.txt", b"one")), ("files", ("SAME.txt", b"two"))],
-])
+@pytest.mark.parametrize(
+    "files",
+    [
+        [("files", ("../escape.txt", b"text"))],
+        [("files", ("folder\\escape.txt", b"text"))],
+        [("files", ("report.pdf", b"%PDF"))],
+        [("files", ("bad.txt", b"a\0b"))],
+        [("files", ("bad.txt", b"\xff"))],
+        [("files", ("same.txt", b"one")), ("files", ("SAME.txt", b"two"))],
+    ],
+)
 def test_reject_invalid_uploads(system, files):
     app, client, _, _, _ = system
     response = client.post("/collections", files=files)
@@ -218,27 +262,43 @@ def test_reject_invalid_uploads(system, files):
 
 def test_upload_bounds_and_expiration(system, monkeypatch):
     import web.api
+
     _, client, _, _, _ = system
     monkeypatch.setattr(web.api, "MAX_FILES", 1)
-    assert client.post("/collections", files=[("files", ("a.txt", b"a")), ("files", ("b.txt", b"b"))]).status_code == 422
+    assert (
+        client.post(
+            "/collections", files=[("files", ("a.txt", b"a")), ("files", ("b.txt", b"b"))]
+        ).status_code
+        == 422
+    )
     monkeypatch.setattr(web.api, "MAX_FILE_BYTES", 3)
     assert client.post("/collections", files=[("files", ("big.txt", b"four"))]).status_code == 413
     monkeypatch.setattr(web.api, "MAX_FILE_BYTES", 100)
     monkeypatch.setattr(web.api, "MAX_COLLECTIONS", 1)
-    first = client.post("/collections", files=[("files", ("first.txt", b"firstword"))]).json()["collection_id"]
-    second = client.post("/collections", files=[("files", ("second.txt", b"secondword"))]).json()["collection_id"]
+    first = client.post("/collections", files=[("files", ("first.txt", b"firstword"))]).json()[
+        "collection_id"
+    ]
+    second = client.post("/collections", files=[("files", ("second.txt", b"secondword"))]).json()[
+        "collection_id"
+    ]
     assert client.get("/search", params={"q": "firstword", "collection": first}).status_code == 404
-    assert client.get("/search", params={"q": "secondword", "collection": second}).json()["total"] == 1
+    assert (
+        client.get("/search", params={"q": "secondword", "collection": second}).json()["total"] == 1
+    )
     assert client.get("/stats", params={"collection": "../escape"}).status_code == 422
 
 
 def test_upload_total_and_request_body_bound(system, monkeypatch):
     import web.api
+
     client = system[1]
     monkeypatch.setattr(web.api, "MAX_BATCH_BYTES", 3)
     assert client.post("/collections", files=[("files", ("a.txt", b"four"))]).status_code == 413
-    response = client.post("/collections", content=b"x" * (1024 * 1024 + 10),
-                           headers={"Content-Type": "multipart/form-data; boundary=x"})
+    response = client.post(
+        "/collections",
+        content=b"x" * (1024 * 1024 + 10),
+        headers={"Content-Type": "multipart/form-data; boundary=x"},
+    )
     assert response.status_code == 413
 
 
@@ -247,7 +307,9 @@ def test_upload_cleanup_on_shutdown(tmp_path):
     corpus.mkdir()
     (corpus / "a.txt").write_text("example")
     index = tmp_path / "snapshot.lsi"
-    subprocess.run([str(BINARY), "index", str(corpus), "--index", str(index)], check=True, capture_output=True)
+    subprocess.run(
+        [str(BINARY), "index", str(corpus), "--index", str(index)], check=True, capture_output=True
+    )
     with TestClient(create_app(index)) as client:
         response = client.post("/collections", files=[("files", ("upload.txt", b"temporary"))])
         root = Path(response.json()["root"])
@@ -258,6 +320,7 @@ def test_upload_cleanup_on_shutdown(tmp_path):
 def test_ui_upload_search_and_switch_collection(ui, monkeypatch):
     import io
     import streamlit
+
     file = io.BytesIO(b"onlyuploaded uniquephrase")
     file.name = "uploaded.txt"
     file.size = len(file.getvalue())

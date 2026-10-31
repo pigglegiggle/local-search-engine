@@ -7,16 +7,22 @@
 namespace py = pybind11;
 
 class NativeIndex {
-public:
+  public:
     explicit NativeIndex(const std::string& path) {
         const auto begin = std::chrono::steady_clock::now();
         {
             py::gil_scoped_release release;
             index_ = lse::load_index(path);
-            for (const auto& doc : index_.documents) source_bytes_ += doc.content.size();
-            for (const auto& term : index_.terms) postings_ += term.second.size();
+            for (const auto& doc : index_.documents) {
+                source_bytes_ += doc.content.size();
+            }
+            for (const auto& term : index_.terms) {
+                postings_ += term.second.size();
+            }
         }
-        load_ms_ = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - begin).count();
+        load_ms_ =
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - begin)
+                .count();
     }
 
     py::dict stats() const {
@@ -68,7 +74,7 @@ public:
         return result;
     }
 
-private:
+  private:
     lse::Index index_;
     std::uint64_t source_bytes_ = 0, postings_ = 0;
     double load_ms_ = 0;
@@ -76,13 +82,17 @@ private:
 
 PYBIND11_MODULE(_native, module) {
     module.doc() = "Immutable resident-memory snapshots of the C++ local search engine.";
-    module.def("build_index", [](const std::string& root, const std::string& destination) {
-        py::gil_scoped_release release;
-        auto built = lse::build_index(root, destination, nullptr);
-        lse::save_index(built.index, destination);
-    }, py::arg("root"), py::arg("destination"));
+    module.def(
+        "build_index",
+        [](const std::string& root, const std::string& destination) {
+            py::gil_scoped_release release;
+            auto built = lse::build_index(root, destination, nullptr);
+            lse::save_index(built.index, destination);
+        },
+        py::arg("root"), py::arg("destination"));
     py::class_<NativeIndex>(module, "NativeIndex")
         .def(py::init<const std::string&>(), py::arg("path"))
         .def("stats", &NativeIndex::stats)
-        .def("search", &NativeIndex::search, py::arg("query"), py::arg("limit") = 10, py::arg("explain") = false);
+        .def("search", &NativeIndex::search, py::arg("query"), py::arg("limit") = 10,
+             py::arg("explain") = false);
 }

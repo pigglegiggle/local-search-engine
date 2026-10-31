@@ -2,8 +2,8 @@
 
 #include <cstdint>
 #include <filesystem>
-#include <map>
 #include <limits>
+#include <map>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -49,11 +49,13 @@ struct SearchResult {
 };
 
 class BKTree {
-public:
+  public:
     void insert(const std::string& word);
-    std::vector<std::string> within(const std::string& word, unsigned radius,
-                                    std::size_t max_matches = std::numeric_limits<std::size_t>::max()) const;
-private:
+    std::vector<std::string>
+    within(const std::string& word, unsigned radius,
+           std::size_t max_matches = std::numeric_limits<std::size_t>::max()) const;
+
+  private:
     struct Node {
         std::string word;
         std::map<unsigned, std::size_t> children;
@@ -81,22 +83,26 @@ struct BuildReport {
     double milliseconds = 0;
     std::vector<std::string> warnings;
 };
-struct BuildResult { Index index; BuildReport report; };
-BuildResult build_index(const fs::path& root, const fs::path& index_path,
-                        const Index* previous, BuildOptions options = {});
+struct BuildResult {
+    Index index;
+    BuildReport report;
+};
+BuildResult build_index(const fs::path& root, const fs::path& index_path, const Index* previous,
+                        BuildOptions options = {});
 
 Index load_index(const fs::path& path);
 void save_index(const Index& index, const fs::path& path);
 
 class WriteLock {
-public:
+  public:
     explicit WriteLock(const fs::path& index_path);
     ~WriteLock();
     WriteLock(const WriteLock&) = delete;
     WriteLock& operator=(const WriteLock&) = delete;
-private:
+
+  private:
     int descriptor_ = -1;
 };
 
 std::string json_string(std::string_view text);
-}
+} // namespace lse
