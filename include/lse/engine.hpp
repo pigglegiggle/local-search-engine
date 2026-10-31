@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <map>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -50,7 +51,8 @@ struct SearchResult {
 class BKTree {
 public:
     void insert(const std::string& word);
-    std::vector<std::string> within(const std::string& word, unsigned radius) const;
+    std::vector<std::string> within(const std::string& word, unsigned radius,
+                                    std::size_t max_matches = std::numeric_limits<std::size_t>::max()) const;
 private:
     struct Node {
         std::string word;

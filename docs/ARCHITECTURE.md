@@ -53,7 +53,7 @@ The final heap keeps at most `k` matches, with the worst selected result at its 
 
 The vocabulary BK-tree uses exact Levenshtein distance over decoded Unicode codepoints. A node at distance `d` from the query can only have qualifying children on edges in `[d-r, d+r]`. This pruning requires a true metric: a distance approximation truncated at `r` would be incorrect for navigating the tree.
 
-Levenshtein uses two DP rows: `O(ab)` time and `O(b)` auxiliary space for word lengths `a,b`. Each visited node incurs a distance computation. Worst-case traversal is the full vocabulary. Only terms up to 128 codepoints enter the BK-tree; longer terms remain in the positional dictionary. Prefix lookup uses the ordered dictionary, independently of the BK-tree.
+Levenshtein uses two DP rows: `O(ab)` time and `O(b)` auxiliary space for word lengths `a,b`. Each visited node incurs a distance computation. Query expansion stops collecting after the 129th match, the witness needed to reject the 128-term limit. This avoids retaining an arbitrarily large matching expansion before returning the error; it does not guarantee bounded traversal time when few terms match. Library callers can omit the match budget for complete results. Worst-case traversal is still the full vocabulary. Only terms up to 128 codepoints enter the BK-tree; longer terms remain in the positional dictionary. Prefix lookup uses the ordered dictionary, independently of the BK-tree.
 
 ## Incremental rebuild
 

@@ -107,6 +107,20 @@ void queries() {
     for (unsigned i = 0; i < 140; ++i) wide_dictionary += "prefix_" + std::to_string(i) + " ";
     auto wide = corpus({wide_dictionary});
     rejects([&] { wide.search("prefix_*"); }, "broad prefix rejects incomplete expansion");
+    std::string fuzzy_dictionary;
+    lse::BKTree broad_tree;
+    for (unsigned i = 0; i < 140; ++i) {
+        auto word = std::string("term_") + static_cast<char>('a' + i / 26) + static_cast<char>('a' + i % 26);
+        fuzzy_dictionary += word + " "; broad_tree.insert(word);
+    }
+    auto broad_fuzzy = corpus({fuzzy_dictionary});
+    rejects([&] { broad_fuzzy.search("term_aa~2"); }, "broad fuzzy query rejects incomplete expansion");
+    check(broad_tree.within("term_aa", 2).size() == 140, "unlimited BK-tree lookup remains complete");
+    const auto capped = broad_tree.within("term_aa", 2, 129);
+    check(capped.size() == 129 && std::is_sorted(capped.begin(), capped.end()), "bounded fuzzy expansion retains a sorted overflow witness");
+    for (const auto& word : capped) check(lse::edit_distance("term_aa", word) <= 2, "bounded BK-tree results retain metric membership");
+    check(broad_tree.within("term_aa", 2, 0).empty(), "zero BK-tree match budget returns no results");
+
     check(wide.search("prefix_139").total == 1, "exact lookup unaffected by expansion bound");
     rejects([&] { index.search(std::string(4097, 'a')); }, "query byte bound");
     std::string many_elements;

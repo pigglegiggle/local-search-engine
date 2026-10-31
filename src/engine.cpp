@@ -232,7 +232,7 @@ private:
                 words.push_back(it->first);
                 if (words.size() > 128) break;
             }
-        } else words = index_.fuzzy.within(word, radius);
+        } else words = index_.fuzzy.within(word, radius, 129);
         if (words.size() > 128) throw std::runtime_error("expansion exceeds 128 terms; use a longer word or smaller edit distance");
         Matches result;
         for (const auto& w : words) result = merge(std::move(result),
@@ -329,15 +329,19 @@ void BKTree::insert(const std::string& word) {
         }
     }
 }
-std::vector<std::string> BKTree::within(const std::string& word, unsigned radius) const {
+std::vector<std::string> BKTree::within(const std::string& word, unsigned radius, std::size_t max_matches) const {
     std::vector<std::string> result;
-    if (nodes_.empty()) return result;
+    if (nodes_.empty() || max_matches == 0) return result;
     std::vector<std::size_t> stack{0};
     while (!stack.empty()) {
         auto id = stack.back(); stack.pop_back();
         const auto& node = nodes_[id];
         auto d = edit_distance(word, node.word);
-        if (d <= radius) result.push_back(node.word);
+        if (d <= radius) {
+            result.push_back(node.word);
+            // Query callers need one overflow witness, not an unbounded expansion list.
+            if (result.size() == max_matches) break;
+        }
         auto lower = d > radius ? d - radius : 0;
         for (auto it = node.children.lower_bound(lower); it != node.children.end() && it->first <= d + radius; ++it)
             stack.push_back(it->second);
