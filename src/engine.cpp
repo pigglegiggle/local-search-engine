@@ -21,8 +21,7 @@ double elapsed(Clock::time_point start) {
     return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
 }
 struct Rune { std::uint32_t value; std::size_t begin, end; };
-std::vector<Rune> decode(std::string_view text) {
-    std::vector<Rune> result;
+template<class Visitor> void visit_runes(std::string_view text, Visitor visit) {
     for (std::size_t i = 0; i < text.size();) {
         const auto begin = i;
         auto first = static_cast<unsigned char>(text[i++]);
@@ -42,9 +41,8 @@ std::vector<Rune> decode(std::string_view text) {
         if ((following == 1 && cp < 0x80) || (following == 2 && cp < 0x800) ||
             (following == 3 && cp < 0x10000) || cp > 0x10ffff ||
             (cp >= 0xd800 && cp <= 0xdfff)) throw std::runtime_error("invalid UTF-8 codepoint");
-        result.push_back({cp, begin, i});
+        visit(Rune{cp, begin, i});
     }
-    return result;
 }
 bool word_character(std::uint32_t c) {
     if (c < 128) return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
@@ -300,18 +298,19 @@ std::vector<Token> analyze(std::string_view text) {
         output.push_back({std::move(value), static_cast<std::uint32_t>(output.size()), begin, end});
         active = false;
     };
-    for (const auto& rune : decode(text)) {
+    // Decode one rune at a time instead of retaining a second full copy of the document.
+    visit_runes(text, [&](const Rune& rune) {
         if (word_character(rune.value)) {
             if (!active) { begin = rune.begin; active = true; }
             end = rune.end;
         } else flush();
-    }
+    });
     flush();
     return output;
 }
 std::vector<std::uint32_t> codepoints(std::string_view text) {
     std::vector<std::uint32_t> output;
-    for (auto rune : decode(text)) output.push_back(rune.value);
+    visit_runes(text, [&](const Rune& rune) { output.push_back(rune.value); });
     return output;
 }
 unsigned edit_distance(std::string_view a, std::string_view b) { return distance(codepoints(a), codepoints(b)); }
@@ -363,7 +362,7 @@ void Index::validate() const {
             throw std::runtime_error("invalid or unordered document path");
         for (const auto& part : path) if (part == "..") throw std::runtime_error("unsafe document path");
         if (doc.content.find('\0') != std::string::npos) throw std::runtime_error("binary document in index");
-        codepoints(doc.content); previous = doc.path;
+        visit_runes(doc.content, [](const Rune&) {}); previous = doc.path;
     }
     std::vector<std::uint64_t> counts(documents.size());
     for (const auto& [word, list] : terms) {

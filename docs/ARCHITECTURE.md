@@ -27,6 +27,8 @@ Query → lexer → precedence parser → sorted Boolean matches + BM25
 5. The sum of posting frequencies for a document equals its analyzed length.
 6. `verify` checks the stronger invariant that every `(term, document, position)` actually matches stored source content.
 
+UTF-8 analysis visits one validated codepoint at a time. Tokenization and stored-content validation do not retain an additional full decoded-rune array. APIs that explicitly request codepoints still collect their returned vector. Invalid encodings are rejected at the same byte boundaries before any result is returned.
+
 Term positions are ordinal token positions, not byte offsets. The analyzer additionally returns byte offsets for UTF-8-safe snippet boundaries. No stopwords are removed, so an exact token phrase does not accidentally skip common words.
 
 ## Retrieval

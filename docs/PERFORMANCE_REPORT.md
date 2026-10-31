@@ -187,3 +187,10 @@ The report folder retains raw JSON separately from ignored build artifacts. Sour
 ## Reading the percentiles
 
 p50 is the median: at least half the samples complete within this time. At p95, at least 95% complete within the reported time. Resident search excludes startup and index loading, so it is not total web response latency. The reference is the project's token-scan ranker, not Google or Elasticsearch; human relevance quality was not measured.
+
+
+## Follow-up: streaming UTF-8 traversal
+
+On 1 November 2026, three alternating fresh-process indexing runs compared the previous implementation at `c171d07` with the streaming decoder on this same Mac. The fixture contained 1,150,000 bytes and 200,000 tokens, with one worker. Median process peak RSS fell from **93.73 MiB to 26.19 MiB**. Each saved snapshot passed semantic verification.
+
+This removes the full decoded-rune intermediate from analysis and stored-content validation; it does not bound total indexing memory or eliminate token/posting allocations. These small-fixture observations do not replace the earlier corpus measurements, which remain historical. See [raw samples and fixture recipe](performance/utf8-streaming-memory.json) for flags, baseline revision and measurement boundaries.

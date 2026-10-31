@@ -49,6 +49,25 @@ void tokenizer() {
     rejects([] { lse::analyze(std::string("\xe0", 1)); }, "truncated UTF-8 rejected");
     check(lse::edit_distance("café", "cafe") == 1, "distance uses codepoints");
     check(lse::edit_distance("ไทย", "ไท") == 1, "Thai distance");
+    const std::string mixed = "  A, café\nไทย!";
+    auto offsets = lse::analyze(mixed);
+    check(offsets.size() == 3, "mixed-width token count");
+    const std::vector<std::pair<std::size_t, std::size_t>> expected_offsets{{2,3}, {5,10}, {11,20}};
+    for (std::size_t i = 0; i < offsets.size(); ++i) {
+        check(offsets[i].begin == expected_offsets[i].first && offsets[i].end == expected_offsets[i].second,
+              "streaming analysis preserves UTF-8 byte offsets");
+        check(offsets[i].position == i, "streaming analysis preserves ordinal positions");
+    }
+    check(lse::codepoints(mixed).size() == 14, "codepoint decoder shares streaming UTF-8 validation");
+    for (const std::string& invalid : {std::string("\x80", 1), std::string("\xe0\x80\x80", 3),
+             std::string("\xf0\x80\x80\x80", 4), std::string("\xe2x\x80", 3)}) {
+        rejects([&] { lse::analyze("valid prefix " + invalid); }, "invalid UTF-8 after token boundary rejected");
+        rejects([&] { lse::codepoints(invalid); }, "codepoint collection rejects invalid UTF-8");
+        auto damaged = corpus({"valid"});
+        damaged.documents[0].content += invalid;
+        rejects([&] { damaged.validate(); }, "allocation-free content validation rejects malformed UTF-8");
+    }
+
 }
 void queries() {
     auto index = corpus({"memory allocation cache cache", "allocation memory scheduler", "memory memory allocation", "disk storage", ""});
