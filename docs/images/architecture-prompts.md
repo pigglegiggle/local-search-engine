@@ -50,4 +50,3 @@ Under the bottom route, note: "The API holds immutable snapshots and supports sa
 At the bottom, a separate short note: "File uploads create isolated temporary collections."
 This image covers interfaces ONLY. No indexing pipeline, search internals, or snapshot storage diagrams.
 ```
-
