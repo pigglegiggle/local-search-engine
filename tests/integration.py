@@ -49,11 +49,19 @@ with tempfile.TemporaryDirectory(prefix="lse-tests-") as temporary:
     outside = base / "outside.md"
     outside.write_text("secret external data")
     (root / "symlink.md").symlink_to(outside)
+    (root / "dangling.md").symlink_to(base / "missing-target.md")
+    (root / "loop.md").symlink_to("loop.md")
+    outside_directory = base / "outside-directory"
+    outside_directory.mkdir()
+    (outside_directory / "hidden.md").write_text("externalonly")
+    (root / "linked-directory").symlink_to(outside_directory, target_is_directory=True)
+
     result = run("index", root, "--threads", 3)
     check("skipped 2" in result.stdout, "binary and invalid UTF-8 reported")
     check(search("memory")["total"] == 2, "exact retrieval persisted")
     check(search('"memory allocation"')["total"] == 1, "phrase persisted")
     check(search("secret")["total"] == 0, "symlinks not followed")
+    check(search("externalonly")["total"] == 0, "symlink directories do not expose external files")
     check(search("ไทย")["total"] == 2, "Unicode persisted")
     check(search("quote")["hits"][0]["path"] == 'quote"name.md', "JSON escaping")
     run("verify")

@@ -172,7 +172,7 @@ For the measured 3,000–20,000-document scaling runs, real CPython corpus, larg
 - Readers open either the old complete snapshot or the new complete snapshot. A failed scan does not commit a partially rebuilt index.
 - Format/version, payload length, CRC32, allocation bounds, sortedness, paths, document references, and position ranges are validated during load. `verify` additionally rebuilds the expected postings from stored content and compares every position.
 - Index files contain **full source text** for offline snippets. Treat them as sensitive as the originals; temporary index files are created with owner-only permissions. CRC32 is an accidental-corruption check, not authentication or encryption.
-- Symlinks are not followed. Skipped directories: `.git`, `.local-search`, `node_modules`, `build`, `dist`, `__pycache__`, `.venv`.
+- Symlinks are skipped without inspecting their targets, including dangling and cyclic links. Skipped directories: `.git`, `.local-search`, `node_modules`, `build`, `dist`, `__pycache__`, `.venv`.
 - Unsupported extensions are ignored. Binary, invalid UTF-8, and oversized supported files are skipped with warnings. If a formerly indexed file becomes invalid or oversized, it is removed from the next snapshot. Traversal/read errors fail the build instead of silently deleting unreadable documents.
 - Files are read individually; this is not a coordinated filesystem snapshot. For reproducible builds, index a directory that is not being edited concurrently.
 

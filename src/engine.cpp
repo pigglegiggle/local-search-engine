@@ -428,7 +428,8 @@ BuildResult build_index(const fs::path& input_root, const fs::path& index_path,
     // Fail closed on directory traversal errors; never silently remove unreadable documents.
     for (fs::recursive_directory_iterator it(root), end; it != end; ++it) {
         auto status = it->symlink_status();
-        if (fs::is_symlink(status)) { if (it->is_directory()) it.disable_recursion_pending(); continue; }
+        // Do not inspect targets: even a dangling or cyclic symlink is simply skipped.
+        if (fs::is_symlink(status)) { it.disable_recursion_pending(); continue; }
         if (fs::is_directory(status)) {
             if (ignored.count(it->path().filename().string())) it.disable_recursion_pending();
             continue;
