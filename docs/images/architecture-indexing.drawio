@@ -1,0 +1,62 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="app.diagrams.net">
+  <diagram name="Local Search Engine — indexing and persistence" id="architecture-indexing">
+    <mxGraphModel page="1" pageWidth="1200" pageHeight="470">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" value="Local Search Engine — indexing and persistence" style="text;html=0;align=center;verticalAlign=top;fontSize=24;fontFamily=Arial;" vertex="1" parent="1">
+          <mxGeometry x="350.0" y="4" width="500" height="29" as="geometry" />
+        </mxCell>
+        <mxCell id="3" value="Local UTF-8 files&#10;Text + source code" style="rounded=0;whiteSpace=wrap;html=0;fillColor=#FFFFFF;strokeColor=#222222;fontColor=#111111;fontFamily=Arial;fontSize=17;" vertex="1" parent="1">
+          <mxGeometry x="30" y="125" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="4" value="Read + tokenize&#10;Bounded worker pool" style="rounded=0;whiteSpace=wrap;html=0;fillColor=#FFFFFF;strokeColor=#222222;fontColor=#111111;fontFamily=Arial;fontSize=17;" vertex="1" parent="1">
+          <mxGeometry x="320" y="125" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="5" value="Deterministic merge&#10;Term → doc IDs → positions" style="rounded=0;whiteSpace=wrap;html=0;fillColor=#FFFFFF;strokeColor=#222222;fontColor=#111111;fontFamily=Arial;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="610" y="125" width="250" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="6" value="Snapshot (.lsi)&#10;Delta / varint + CRC32" style="rounded=0;whiteSpace=wrap;html=0;fillColor=#FFFFFF;strokeColor=#222222;fontColor=#111111;fontFamily=Arial;fontSize=17;" vertex="1" parent="1">
+          <mxGeometry x="930" y="125" width="240" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="7" style="edgeStyle=none;html=0;endArrow=block;endFill=1;strokeColor=#222222;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="250" y="170" as="sourcePoint" />
+            <mxPoint x="320" y="170" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8" style="edgeStyle=none;html=0;endArrow=block;endFill=1;strokeColor=#222222;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="540" y="170" as="sourcePoint" />
+            <mxPoint x="610" y="170" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="9" style="edgeStyle=none;html=0;endArrow=block;endFill=1;strokeColor=#222222;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="860" y="170" as="sourcePoint" />
+            <mxPoint x="930" y="170" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="10" value="Previous snapshot" style="rounded=0;whiteSpace=wrap;html=0;fillColor=#FFFFFF;strokeColor=#222222;fontColor=#111111;fontFamily=Arial;fontSize=17;" vertex="1" parent="1">
+          <mxGeometry x="610" y="300" width="250" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="11" style="edgeStyle=none;html=0;endArrow=block;endFill=1;strokeColor=#222222;dashed=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="735" y="300" as="sourcePoint" />
+            <mxPoint x="735" y="215" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="12" value="Reuse unchanged postings" style="text;html=0;align=center;verticalAlign=top;fontSize=16;fontFamily=Arial;" vertex="1" parent="1">
+          <mxGeometry x="675" y="264" width="500" height="21" as="geometry" />
+        </mxCell>
+        <mxCell id="13" value="fsync → rename → directory sync" style="text;html=0;align=center;verticalAlign=top;fontSize=14;fontFamily=Arial;" vertex="1" parent="1">
+          <mxGeometry x="800" y="236" width="500" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="14" value="Every update reads source bytes and writes a complete replacement snapshot." style="text;html=0;align=center;verticalAlign=top;fontSize=17;fontFamily=Arial;" vertex="1" parent="1">
+          <mxGeometry x="350" y="398" width="500" height="22" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

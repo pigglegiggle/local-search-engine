@@ -1,36 +1,107 @@
 # Local Search Engine
 
-A C++17 search engine for local UTF-8 text and source files. The retrieval algorithms are implemented here, rather than delegated to a search library. Runs on macOS (Apple Silicon or Intel) and POSIX systems with a C++17 compiler.
+A C++17 **local text search engine** for UTF-8 documents and source code. It builds its own positional inverted index, evaluates Boolean and phrase queries, and ranks matches with BM25. Search is available through the CLI, an interactive REPL, and an optional Streamlit + FastAPI interface.
 
-Windows users can follow the [WSL2 setup](#build-and-run-on-windows-wsl2) below. Native Windows/MSVC builds are not implemented.
+**Positional inverted index · BM25 · recursive-descent parser · BK-tree fuzzy search · prefix lookup · bounded top-k heap · incremental snapshots**
 
-**Positional inverted index · BM25 · Boolean query parser · phrase matching · BK-tree fuzzy search · prefix search · bounded top-k heap · incremental snapshots**
-
-Use the command-line application or the optional **Streamlit + FastAPI interface**. Both use the same C++ engine. The web API holds an immutable native index in memory through pybind11 instead of spawning a CLI process for each search. Services bind to loopback by default.
-
-For a complete installation, CLI, upload and API walkthrough, see [How to run](docs/HOW_TO_RUN.md).
+The retrieval algorithms are implemented in the C++ core. The web API calls that same core through pybind11 and retains an immutable index in memory, so each search does not spawn a CLI process. Services bind to loopback by default.
 
 ## Architecture
 
-### Indexing
+### Indexing and persistence
 
-Parallel readers tokenize local files and merge positional postings. Updates reuse unchanged postings and atomically replace the saved snapshot.
+![Indexing and snapshot commit](docs/images/architecture-indexing.svg)
 
-![Indexing pipeline: local UTF-8 files pass through parallel reading, tokenization and merging into a positional inverted index, then a CRC32-protected snapshot saved with fsync and atomic rename.](docs/images/architecture-indexing.png)
+Parallel workers read and analyze files into per-document term positions. A deterministic merge builds the positional inverted index. Incremental indexing reuses unchanged postings after comparing actual source bytes; each update still reads the source and writes a complete replacement snapshot.
 
-### Search
+### Retrieval and ranking
 
-The engine loads and validates a snapshot, then uses its resident index for Boolean/phrase retrieval, BM25 ranking and top-k results. The REPL and API reuse the loaded index across queries.
+![Resident query execution](docs/images/architecture-search.svg)
 
-![Search pipeline: a loaded resident index supplies positional postings, BK-tree fuzzy lookup and prefix lookup to query retrieval; queries pass through parsing, retrieval and BM25 scoring, then a bounded top-k heap and snippets produce ranked results.](docs/images/architecture-search.png)
+A loaded snapshot supplies sorted postings, token positions, a BK-tree and ordered prefix lookup. The parser applies Boolean precedence, retrieval finds eligible documents, and BM25 assigns relevance scores. A size-k heap retains the best results before final sorting and snippet generation.
 
 ### CLI and web interfaces
 
-Both interfaces use the same C++17 core. The web service calls it through pybind11 and keeps immutable snapshots in memory, with isolated temporary collections for uploads.
+![CLI, REPL and native web interface](docs/images/architecture-interfaces.svg)
 
-![Interface routes: CLI and REPL call the C++17 engine directly; Streamlit calls FastAPI over HTTP, and FastAPI calls the resident C++17 engine through pybind11.](docs/images/architecture-interfaces.png)
+Both interfaces use the same C++17 implementation. The CLI loads a snapshot for each command; the REPL reuses it across queries. FastAPI calls the native engine through pybind11 and holds immutable snapshots in memory. Streamlit sends HTTP requests to that API. Uploads create isolated temporary collections.
 
-See [architecture and correctness](docs/ARCHITECTURE.md) for invariants, algorithms and storage guarantees.
+### A search from query to results
+
+1. Load and validate a saved `.lsi` snapshot, or reuse the resident snapshot in the REPL/API.
+2. Tokenize the query and evaluate its expression with a recursive-descent parser using **NOT > AND > OR** precedence.
+3. Resolve terms, prefix ranges and fuzzy expansions against the dictionary. Intersect, union or complement sorted document lists; phrases additionally check token positions.
+4. Accumulate BM25 contributions for positive terms. Filters and negated clauses determine eligibility without adding score.
+5. Keep at most k results in a bounded heap, order score ties by relative path, then generate snippets and optional term explanations.
+
+[Architecture and correctness](docs/ARCHITECTURE.md) documents the implementation invariants. The three diagrams are separate, text-first SVGs with [editable draw.io sources](docs/DIAGRAMS.md).
+
+## Build
+
+Requirements: C++17, `make` and POSIX filesystem APIs. Python 3 is used for CLI integration tests and synthetic benchmarks; the optional web setup was tested with Python 3.13. The recorded tests and measurements were run on macOS Apple Silicon. Linux/WSL instructions are provided; execution there has not been validated on this development Mac.
+
+On macOS, install compiler tools if needed:
+
+```sh
+xcode-select --install
+```
+
+Clone and build:
+
+```sh
+git clone https://github.com/pigglegiggle/local-search-engine.git
+cd local-search-engine
+make
+```
+
+There are no third-party dependencies for the command-line C++ engine. `make` builds `build/lse`; `Nothing to be done` means it is up to date.
+
+On Ubuntu/Linux, install the build tools first, then clone and build as above:
+
+```sh
+sudo apt update
+sudo apt install -y build-essential clang git python3 python3-dev python3-venv
+```
+
+### Build and run on Windows (WSL2)
+
+From an administrator PowerShell terminal:
+
+```powershell
+wsl --install -d Ubuntu-24.04
+```
+
+Restart if prompted and complete Ubuntu setup. Run the Linux installation, clone and build commands **inside Ubuntu**. Keep the checkout and Python environment in the Linux filesystem, such as `~/projects/local-search-engine`. Native Windows/MSVC builds are not implemented because the engine uses POSIX APIs including `flock` and `fsync`.
+
+The [complete Windows walkthrough](docs/HOW_TO_RUN.md#windows-setup-wsl2) covers WSL checks, browser access, Windows-drive paths, web setup and benchmark portability.
+
+## Try the included corpus
+
+```sh
+make demo
+./build/lse repl --index build/demo.lsi --explain
+```
+
+The demo indexes only `examples/corpus`, then searches for `"memory allocation" OR scheduler~1`. It starts with five documents, 120 dictionary terms and 161 tokens. Ranked results include relative paths, BM25 scores, contextual snippets and per-term contributions. Timings and update counters vary by run.
+
+The REPL keeps that index loaded. Enter a query such as `cache OR memory`; enter `:quit` to exit. Searches use a saved snapshot, so source edits become searchable after reindexing.
+
+## Index your own files
+
+```sh
+./build/lse index ./examples/corpus --index build/my-notes.lsi --threads 4
+./build/lse search '"memory allocation"' --index build/my-notes.lsi --explain
+./build/lse search '(cache OR memory) NOT ext:cpp' --index build/my-notes.lsi
+./build/lse search 'sched* OR memry~1' --index build/my-notes.lsi --json
+./build/lse stats --index build/my-notes.lsi
+./build/lse verify --index build/my-notes.lsi
+```
+
+Replace `./examples/corpus` with your folder; quote paths containing spaces. The first command recursively reads supported text/source files. `search` queries that snapshot, `stats` reports index statistics, and `verify` reconstructs postings from stored content and checks every token position.
+
+Run the same `index` command after editing files. It detects additions, changed content and removals while reusing unchanged positional postings. Content comparison uses actual bytes. If an old index is damaged or incompatible, indexing refuses to overwrite it silently; add `--rebuild` to explicitly replace it from source files. A failed rebuild preserves the old snapshot.
+
+The default snapshot is `.local-search/index.lsi` relative to the **current working directory**. Use `--index` consistently when choosing another location. See [How to run](docs/HOW_TO_RUN.md) for the full CLI and upload walkthrough.
 
 ## Web UI and API
 
@@ -48,127 +119,6 @@ Open [Local Search](http://127.0.0.1:8501) or [interactive API docs](http://127.
 Endpoints: `GET /health`, `GET /stats`, `GET /search?q=memory&k=10&explain=true`, `POST /reload`, and `POST /collections` for multipart uploads. API queries use the native engine, with HTTP validation and snapshot-safe reload. `make web-test` runs HTTP/native parity and Streamlit interaction tests. This is a local service; multi-user authorization and public deployment controls are not implemented.
 
 The UI uses standard Streamlit widgets and styling. Upload UTF-8 text/source files, click **Index uploaded files**, then search that temporary collection. Switch back to the default collection in the sidebar. Uploads do not overwrite the default index. Limits: 50 files, 8 MiB per file, 32 MiB total; PDF/Word/images are not supported. Uploaded collections are temporary, limited to four recently used collections, and cleaned up when the API stops.
-
-## Build and run on macOS
-
-Install Apple's command-line tools if needed:
-
-```sh
-xcode-select --install
-```
-
-From this project directory:
-
-```sh
-make
-make demo
-./build/lse repl --index build/demo.lsi --explain
-```
-
-Index a directory you choose, then search:
-
-```sh
-./build/lse index ./examples/corpus --index build/my-notes.lsi --threads 4
-./build/lse search '"memory allocation"' --index build/my-notes.lsi --explain
-./build/lse search '(cache OR memory) NOT ext:cpp' --index build/my-notes.lsi
-./build/lse search 'sched* OR memry~1' --index build/my-notes.lsi --json
-./build/lse stats --index build/my-notes.lsi
-./build/lse verify --index build/my-notes.lsi
-```
-
-Run `index` again after editing source files. It detects content changes, adds new files, removes missing files, and reuses unchanged positional postings. Content comparison uses actual bytes, not modification times or a collision-prone content hash.
-
-If an existing index is damaged or incompatible, `index` refuses to overwrite it silently. Use `./build/lse index <folder> --index <file> --rebuild` to explicitly create a complete replacement from source files. A failed rebuild still leaves the old snapshot in place.
-
-The default index location is `.local-search/index.lsi` relative to the **current working directory**, not the corpus directory. Use `--index` consistently if you select another location. Search uses the saved snapshot; rerun `index` to see changes. `:quit` exits the interactive session.
-
-## Build and run on Windows (WSL2)
-
-Use **WSL2 with Ubuntu** to run the Linux build on Windows. The engine requires POSIX APIs such as `flock`, `fsync` and `unistd.h`; installing a Windows C++ compiler alone is insufficient. The instructions below target Ubuntu 24.04. WSL execution has not been tested on the development Mac; the recorded test and benchmark results are from macOS.
-
-### 1. Install WSL2
-
-On Windows 11, or Windows 10 version 2004/build 19041 or later, open **PowerShell as Administrator**:
-
-```powershell
-wsl --install -d Ubuntu-24.04
-```
-
-Restart Windows if prompted, launch **Ubuntu 24.04**, and create the requested Linux username/password. If WSL is already installed, use `wsl --list --online` to check the available distribution names. Microsoft's [WSL installation guide](https://learn.microsoft.com/en-us/windows/wsl/install) covers prerequisites and installation troubleshooting.
-
-Check the installed distribution from PowerShell:
-
-```powershell
-wsl --list --verbose
-```
-
-Its `VERSION` column should be `2`. If it is `1`, convert that distribution with `wsl --set-version Ubuntu-24.04 2` (use the exact installed name).
-
-### 2. Install Linux tools and clone the project
-
-Run the remaining build and application commands **inside the Ubuntu terminal**, not directly in PowerShell or Command Prompt:
-
-```bash
-sudo apt update
-sudo apt install -y build-essential clang git python3 python3-dev python3-venv
-
-mkdir -p ~/projects
-cd ~/projects
-git clone https://github.com/pigglegiggle/local-search-engine.git
-cd local-search-engine
-```
-
-Keep the checkout, virtual environment and saved indexes in the Linux filesystem, such as `~/projects`, for Linux filesystem semantics and better file-operation performance. See Microsoft's [filesystem guidance](https://learn.microsoft.com/en-us/windows/wsl/filesystems). Create `.venv` inside WSL; do not reuse a Windows/macOS virtual environment or a compiled native module from another operating system.
-
-### 3. Build and try the CLI
-
-```bash
-make
-make demo
-./build/lse search '"memory allocation"' --index build/demo.lsi --explain
-./build/lse repl --index build/demo.lsi --explain
-```
-
-Enter `:quit` to exit the REPL. All query syntax and CLI examples elsewhere in this README also apply inside WSL.
-
-### 4. Start the web UI
-
-```bash
-make web-setup
-make web
-```
-
-The setup creates a Linux Python virtual environment, installs the pinned dependencies and compiles the native C++ binding. Keep that terminal open, then open these addresses in your **Windows browser**:
-
-- UI: <http://localhost:8501>
-- API docs: <http://localhost:8000/docs>
-
-WSL supports accessing Linux services from Windows using `localhost`; see Microsoft's [networking guide](https://learn.microsoft.com/en-us/windows/wsl/networking). If the page does not open, check that both services started and their ports are free; WSL networking/firewall configuration can also affect access. Press **Ctrl+C in Ubuntu** to stop both services. On later runs, use `make web` again.
-
-### 5. Index files stored on Windows
-
-Windows drives appear under `/mnt` in WSL. For example, `C:\Users\YourName\Documents\my-notes` becomes `/mnt/c/Users/YourName/Documents/my-notes`. Replace `YourName` and the folder with your actual path:
-
-```bash
-./build/lse index "/mnt/c/Users/YourName/Documents/my-notes" \
-  --index build/windows-notes.lsi --threads 4
-./build/lse search 'memory OR cache' --index build/windows-notes.lsi
-
-# Start the UI with this snapshot instead of the demo collection.
-LSE_INDEX="$PWD/build/windows-notes.lsi" make web
-```
-
-Stop an existing launcher before starting another. Reindex after source edits, then click **Reload index** in the UI. Keep the snapshot under the Linux checkout even when reading source files from a Windows drive. For reproducible performance measurements, copy the corpus into the Linux filesystem too; `/mnt/c` timings include cross-filesystem costs.
-
-### 6. Verify the WSL build
-
-```bash
-make test
-make web-test
-make benchmark
-```
-
-`web-test` requires `web-setup` first. The synthetic benchmark uses temporary files and keeps its JSON results in `build/benchmark.json`. The separate `scripts/benchmark_real.py` harness uses macOS `/usr/bin/time -l` and is **not portable to WSL as written**; use the synthetic benchmark on WSL or adapt the memory measurement before running that harness.
 
 ## Query language
 
@@ -235,7 +185,7 @@ For the measured 3,000–20,000-document scaling runs, real CPython corpus, larg
 - Updating reuses unchanged postings but still reads source content, remaps document IDs, constructs the new dictionary/BK-tree, and rewrites the complete snapshot. This is incremental analysis, **not** in-place segment compaction.
 - Index loading reads and structurally validates the full index and builds a BK-tree. Repeated CLI searches should use `repl` to amortize startup cost. The optional FastAPI service holds a resident snapshot and Streamlit provides its UI. There is no file watcher or multi-machine index.
 
-## Verification and measurements
+## Tests and measurements
 
 ```sh
 make test
