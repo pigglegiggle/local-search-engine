@@ -8,11 +8,35 @@ Windows users can follow the [WSL2 setup](#build-and-run-on-windows-wsl2) below.
 
 Use the command-line application or the optional **Streamlit + FastAPI interface**. Both use the same C++ engine. The web API holds an immutable native index in memory through pybind11 instead of spawning a CLI process for each search. Services bind to loopback by default.
 
-![Streamlit interface showing file uploads, a phrase query, ranked results and BM25 explanations](docs/images/web-ui.png)
+For a complete installation, CLI, upload and API walkthrough, see [How to run](docs/HOW_TO_RUN.md).
 
-The screenshot uses the included demo corpus. For a complete installation, CLI, upload and API walkthrough, see [How to run](docs/HOW_TO_RUN.md).
+## Architecture
+
+### Indexing
+
+Parallel readers tokenize local files and merge positional postings. Updates reuse unchanged postings and atomically replace the saved snapshot.
+
+![Indexing pipeline: local UTF-8 files pass through parallel reading, tokenization and merging into a positional inverted index, then a CRC32-protected snapshot saved with fsync and atomic rename.](docs/images/architecture-indexing.png)
+
+### Search
+
+The engine loads and validates a snapshot, then uses its resident index for Boolean/phrase retrieval, BM25 ranking and top-k results. The REPL and API reuse the loaded index across queries.
+
+![Search pipeline: a loaded resident index supplies positional postings, BK-tree fuzzy lookup and prefix lookup to query retrieval; queries pass through parsing, retrieval and BM25 scoring, then a bounded top-k heap and snippets produce ranked results.](docs/images/architecture-search.png)
+
+### CLI and web interfaces
+
+Both interfaces use the same C++17 core. The web service calls it through pybind11 and keeps immutable snapshots in memory, with isolated temporary collections for uploads.
+
+![Interface routes: CLI and REPL call the C++17 engine directly; Streamlit calls FastAPI over HTTP, and FastAPI calls the resident C++17 engine through pybind11.](docs/images/architecture-interfaces.png)
+
+See [architecture and correctness](docs/ARCHITECTURE.md) for invariants, algorithms and storage guarantees.
 
 ## Web UI and API
+
+![Streamlit interface showing file uploads, a phrase query, ranked results and BM25 explanations](docs/images/web-ui.png)
+
+The screenshot uses the included demo corpus.
 
 ```sh
 make web-setup
